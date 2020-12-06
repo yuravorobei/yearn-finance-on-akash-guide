@@ -142,7 +142,7 @@ Derive a new key locally:
   ```
 
 You'll see a response similar to below:
-  ```
+  ```yaml
   - name: crypto
     type: local
     address: akash1kfd3adu7sgcu2vxd3ucc3pehmrautp25kxenn5
@@ -171,7 +171,7 @@ In this guide I use edgenet Akash network. Non-mainnet networks will often times
   ```
 Go to the resulting URL and enter your account address; you should see tokens in your account shortly.
 Check your account balance with:
-  ```bash
+  ```yaml
   $ akash --node "$AKASH_NODE" query bank balances "$ACCOUNT_ADDRESS"
 
   balances: 
@@ -255,7 +255,7 @@ You can check the status of your lease by running:
     --node $AKASH_NODE --state active
   ```
   You should see a response similar to:
-  ```
+  ```yaml
   - lease_id:
       dseq: "123991"
       gseq: 1
@@ -296,7 +296,7 @@ Your image is deployed, once you uploaded the manifest. You can retrieve the acc
     --provider $PROVIDER --owner $ACCOUNT_ADDRESS
   ```
 You should see a response similar to:
-  ```
+  ```json
   {
     "services": {
       "web": {
@@ -336,7 +336,7 @@ Additionally, you can also query the market to check if your lease is closed:
   $ akash query market lease list --owner $ACCOUNT_ADDRESS --node $AKASH_NODE
   ```
 You should see a response similar to:
-  ```
+  ```yaml
   - lease_id:
       dseq: "123991"
       gseq: 1
