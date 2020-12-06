@@ -1,5 +1,5 @@
 # Deployment guide for Yearn.Finance on Akash DeCloud
-![title picture](https://github.com/yuravorobei/iearn-finance-akash-guide/blob/main/media/header.png)
+![title picture](https://github.com/yuravorobei/yearn-finance-on-akash-guide/blob/main/media/header.png)
 
   In this guide for the "Akashian Challenge: Phase 3 Start Guide" I'll show you how to deploy the [Yearn.Finance web-app](https://docs.yearn.finance/) on the [Akash Decentralized Cloud (DeCloud)](https://akash.network/).  
   **Yearn.Finance** is a suite of products in Decentralized Finance (DeFi) that provides lending aggregation, yield generation, and insurance on the Ethereum blockchain. The protocol is maintained by various independent developers and is governed by YFI holders.  
@@ -317,8 +317,8 @@ You should see a response similar to:
   }
   ```
 You can access the application by visiting the hostnames mapped to your deployment. In above example, its http://vbr0pmrhftbmddsanj9ssftb60.provider2.akashdev.net. Following the address, make sure that the application works:
-![result1](https://github.com/yuravorobei/iearn-finance-akash-guide/blob/main/media/deployed_1.png)
-![result2](https://github.com/yuravorobei/iearn-finance-akash-guide/blob/main/media/deployed_2.png)
+![result1](https://github.com/yuravorobei/yearn-finance-on-akash-guide/blob/main/media/deployed_1.png)
+![result2](https://github.com/yuravorobei/yearn-finance-on-akash-guide/blob/main/media/deployed_2.png)
 
 
 ### 3.5 Close your deployment
