@@ -10,95 +10,167 @@ This guide is divided into three main parts: dockerizing, installing and prepari
 # 1. Dockerizing
 The Akash works with a Docker images, so the first thing we need to do to deploy is to get the Docker image of the Yearn.Finance application. If you already have the image or know how to get it, you can skip this step.
 
-### 1.1 Getting the source code
+
+### 1.1 Source code
 First, you need to get the source code of the Yearn.Finance application on your computer. To do this, clone the [Yearn.Finance GitHub repository](https://github.com/iearn-finance/iearn-finance.git):
   ```bash
   $ git clone https://github.com/iearn-finance/iearn-finance.git
   $ cd iearn-finance
   ```
 
-### 1.2 Creating a server.js
-The YearnFinance application is written in Node.JS, so to run it, create a server.js file that defines a web app using the Express.js framework:
-  
-  ```bash
-  $ nano server.js
-  ```
 
-And put the following code in it:
-  ```javascript
-  const express = require('express');
-  const path = require('path');
-  const app = express();
+### 1.2 Dockerfile
+Docker can build images automatically by reading the instructions from a Dockerfile. A Dockerfile is a text document that contains all the commands a user could call on the command line to assemble an image. 
+First, you need to build the project and then deploy it to a web server as static resources. For this we will split the Dockerfile in multiple stages by using the Docker multi-stage builds feature. 
 
-  const port = 8080;
-  const host = '0.0.0.0';
-
-  app.use(express.static(path.join(__dirname, 'build')));
-
-  app.get('/', function (req, res) {
-    res.sendFile(path.join(__dirname, 'build', 'index.html'));
-  });
-
-  app.listen(port, host);
-  ```
-Here I've configured web app to work on port `8080`, but in fact you can specify any port here, because later on the deployment stage we can forward the ports using the port mapping rules.
-
-
-### 1.3 Creating a Dockerfile
-Docker can build images automatically by reading the instructions from a Dockerfile. A Dockerfile is a text document that contains all the commands a user could call on the command line to assemble an image. Create the Dockerfile:
+Let's create the Dockerfile:
   ```bash
   $ nano Dockerfile
   ```
+
 And put the following code in it:
   ```dockerfile
-  # Latest (at the time of writing) LTS version of node available from the Docker Hub
-  FROM node:15
-  
-  # Working directory for our application
-  WORKDIR /usr/src/app
+  # ------- BUILD STAGE --------
+  FROM node:latest as build-stage
 
-  # Bundle app source
+  # set the current working directory
+  WORKDIR /app
+
+  # copy package.json and package-lock.json
+  COPY package*.json ./
+
+  # install project dependencies for production version
+  RUN npm ci --only=production
+
+  # copy all project files and folders to the current working directory
   COPY . .
 
-  # Install app dependencies
-  RUN npm install --only=production
-
-  # Builds the app for production to the build folder
+  # build app for production with minification
   RUN npm run build
 
-  # expose the port that the app uses in the container, the one that we specified in the server.js file
-  EXPOSE 8080
 
-  # start node server
-  CMD [ "node", "server.js" ]
+  # ------- SERVING STAGE --------
+  FROM nginx:alpine as serving-stage
+
+  # copy final project build files
+  COPY --from=build-stage /app/build/ /app/
+
+  # copy Nginx configuration file
+  COPY nginx.conf /etc/nginx/nginx.conf
+
+  # set Nginx production mode to improve performance and security
+  ARG NGINX_MODE=prod
+
+  # Expose the container listening port
+  EXPOSE 80
+
+  # run Nginx in the foreground
+  CMD ["nginx", "-g", "daemon off;"]
+  ```
+  
+The first stage is responsible for building a production-ready artifact of app. I am using the `node:latest` image as a base image. This step installs the dependencies and builds the project into the `build` directory.
+
+At the second stage, you need to organize hosting for the newly created assembly. I recommend using Nginx as a web server for the production version of the application. Nginx is a fast web server that has the best performance in this case and supports routing, static content, etc., in an objectively faster time to provide the greater user experience. 
+
+As a base image used here Alpine-version of `nginx: alpine`, it is a lightweight image that will save space. 
+Next, the project build results obtained in the previous step are copied to the working directory and the `ngix.conf` file, which will be created in the next step of the tutorial, copied to the Nginx configuration directory. Then we open port `80`, you can specify any other. The container will wait for connections on this port to web-server and the same port will need to be specified further in the web server configuration. The last line of the file is used to start Nginx in foreground so that the Docker container does not close immediately after starting.
+
+
+### 1.2 nginx.conf
+For the Nginx web server to work correctly, you need to create a configuration file:
+  
+  ```bash
+  $ nano nginx.conf
+  ```
+
+And put the following code in it:
+  ```Nginx
+  user  nginx;
+  worker_processes  1;
+
+  events {
+    worker_connections  1024;
+  }
+
+  http {
+    include /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    client_max_body_size 100m;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+    '$status $body_bytes_sent "$http_referer" '
+    '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main; # mapped to stdout/stderr
+    sendfile on;
+    tcp_nopush on;
+    keepalive_timeout 65;
+    gzip  on;
+    charset utf-8;
+    proxy_read_timeout 1000s;
+
+    server {
+      listen  80;
+      charset utf-8;
+      root    /app;
+
+      location / {
+        index index.html;
+        try_files $uri $uri/ /index.html;
+      }
+    }
+  }
+
+  ```
+This configuration is written based on standard examples, you can add or change any configurations you need.
+Currently the most important fields here are `http.server.listen` is the port that the web server will listen to (in my case port `80`) and` http.server.root` is the application working directory (`/app`).
+
+
+### 1.3 .dockerignore
+There are additional files and folders in the project directory that do not need to be added to the Docker image to save weight and time to build the image. To do this, a file named `.dockerignore` is used, which lists all files and directories that will be ignored when building the image. Let's create the file:
+  ```bash
+  $ nano .dockerignore
+  ```
+  And put the following strings in it:
+  ```
+  .git
+  .github
+  .gitignore
+  README.md
+  Dockerfile
+  .dockerignore
   ```
 
 
 ### 1.4 Building the Docker image
-To build the image run the following command. Here instead of `<your_username>` you must specify your username, and instead of `iearn-finance`, you can use any name.:
+To build the Docker image run the following command:
   ```bash
-  $ docker build -t <your_username>/iearn-finance .
+  $ docker build -t iearn-finance .
   ```
-Waiting for the completion of the function.
+Any other name can be used here instead of `iearn-finance`, most importantly, do not forget to also change this name in the following commands. Waiting for the completion of the function.
+
 
 ### 1.5 Publishing the image
-To transfer the created image to the cloud server, you need to share it. To do this I will push the image to the [Docker Hub](https://hub.docker.com/). Log into the Docker Hub from the command line. Replace `<your_hub_username>` with your Docker Hub usesrname.
+To transfer the created image to the cloud server, you need to share it. To do this I will push the image to the [Docker Hub](https://hub.docker.com/). Log into the Docker Hub from the command line. Enter the following command, replace `<your_hub_username>` with your Docker Hub usesrname:
   ```bash
   $ docker login --username=<your_hub_username>
   ```
-Find the image ID using `docker images`:
+And enter your Docker Hub password. 
+
+Then find the created image ID using `docker images` command:
   ```
   $ docker images
 
-  REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
-  yarn-finance-last   latest              493f128d23fb        3 minutes ago       61.6MB
+  REPOSITORY      TAG                 IMAGE ID            CREATED             SIZE
+  iearn-finance   latest              493f128d23fb        3 minutes ago       61.6MB
   ```
-My image ID is `7900fe35b502`. Then tag your image with the following command. Replace <image_id> with your image ID and replace `<your_hub_username>` with your Docker Hub usesrname. Any name can be used instead of `iearn-finance`.
-  ```
+The ID of my image is `493f128d23fb`.  
+Then tag your image with the following command, replace `<image_id>` with your image ID and replace `<your_hub_username>` with your Docker Hub usesrname. Any name can be used instead of `iearn-finance`:
+  ```bash
   $ docker tag <image_id> <your_hub_username>/iearn-finance
   ```
 Push your image to the Docker Hub repository with the following command:
-  ```
+  ```bash
   $ docker push <your_hub_username>/iearn-finance
   ```
 Waiting for loading.
@@ -164,7 +236,7 @@ In the above example, your new Akash address is `akash1kfd3adu7sgcu2vxd3ucc3pehm
   ```
 
 ### 2.4 Funding your account
-In this guide I use edgenet Akash network. Non-mainnet networks will often times have a "faucet" running - a server that will send tokens to your account. You can see the faucet url by running:
+In this guide I use the edgenet Akash network. Non-mainnet networks will often times have a "faucet" running - a server that will send tokens to your account. You can see the faucet url by running:
   ```bash
   $ curl "$AKASH_NET/faucet-url.txt"
 
@@ -188,27 +260,29 @@ Okay, now you're ready to deploy the application.
 
 
 # 3. Deploying
-You should have all the shell variables defined in the previous step.
-
+Make sure you have the following set of variables defined on your shell in the previous step "2. Installing and preparing Akash":
+  * `AKASH_CHAIN_ID` - Chain ID of the Akash network connecting to
+  * `AKASH_NODE` - Akash network configuration base URL
+  * `KEY_NAME` - The name of the key you will be deploying from
+  * `KEYRING_BACKEND` - Keyring backend to use for local keys
+  * `ACCOUNT_ADDRESS` - The address of your account
 
 ### 3.1 Creating a deployment configuration
-For configuration in Akash uses [Stack Definition Language (SDL)](https://docs.akash.network/v/master/documentation/sdl). Deployment services, datacenters, pricing, etc.. are described by a YAML configuration file. These files may end in .yml or .yaml.
-Create deploy.yml configuration file with following content.  
-In the `services.images` field replace value `<your_hub_username>/iearn-finance` with your Docker image name.  
-The `services.expose.port` field means the container port to expose. In the first section of the guide I specified port `8080`.  
-The `services.expose.as` field is the port number to expose the container port as specified. Port `80` is the standard port for web servers HTTP protocol.  
-The `resources.storage.size` filed is the required hard disk space for the application. The size of my Docker image is 1.58GB, so I rounded it up with a margin to 2GB and specified it in the configuration as `2Gi`.
+For configuration in Akash uses [Stack Definition Language (SDL)](https://docs.akash.network/v/master/documentation/sdl) similar to Docker Compose files. Deployment services, datacenters, pricing, etc.. are described by a YAML configuration file. These files may end in .yml or .yaml.
+Create `deploy.yml` configuration file:
+  ```bash
+  $ nano deploy.yml
+  ```
+With following content:  
 
   ```yaml
-  $ cat > deploy.yml <<EOF
-  ---
   version: "2.0"
 
   services:
     web:
-      image: <your_hub_username>/iearn-finance
+      image: yuravorobei/iearn-finance
       expose:
-        - port: 8080
+        - port: 80
           as: 80
           to:
             - global: true
@@ -222,21 +296,31 @@ The `resources.storage.size` filed is the required hard disk space for the appli
           memory:
             size: 512Mi
           storage:
-            size: 2Gi
+            size: 512Mi
     placement:
       westcoast:    
         pricing:
           web: 
             denom: uakt
-            amount: 9000
+            amount: 5000
 
   deployment:
     web:
       westcoast:
         profile: web
         count: 1
-  EOF
   ```
+First, a service named `web` is created in which its settings are specified.
+The `services.web.images` field is the name of your published Docker image. In my case it is `yuravorobei/iearn-finance`.
+The `services.expose.port` field means the container port to expose. I have specified listening port `80` in my Nginx settings.
+The `services.expose.as` field is the port number to expose the container port as specified. Port `80` is the standard port for web servers HTTP protocol.  
+
+Next section `profiles.compute` is map of named compute profiles. Each profile specifies compute resources to be leased for each service instance uses uses the profile. This defines a profile named `web` having resource requirements of 0.1 vCPUs, 512 megabytes of RAM memory, and 512 megabytes of storage space available. `cpu.units` represent a virtual CPU share and can be fractional.
+
+`profiles.placement` is map of named datacenter profiles. Each profile specifies required datacenter attributes and pricing configuration for each compute profile that will be used within the datacenter. This defines a profile named `westcoast` having required attribute `pricing` with a max price for the `web` compute profile of 5000 uakt per block. 
+
+The `deployment` section defines how to deploy the services. It is a mapping of service name to deployment configuration.
+Each service to be deployed has an entry in the deployment. This entry is maps datacenter profiles to compute profiles to create a final desired configuration for the resources required for the service.
 
 
 ### 3.2 Creating the deployment
@@ -246,7 +330,7 @@ In this step, you post your deployment, the Akash marketplace matches you with a
     --node $AKASH_NODE --chain-id $AKASH_CHAIN_ID \
     --keyring-backend $KEYRING_BACKEND -y
   ```
-Make sure there are no errors in the command response. The error information will be in the `raw_log` responce field, you can also check the transaction status by transaction hash on the [explorer](https://testnet.akash.aneka.io/).
+Make sure there are no errors in the command response. The error information will be in the `raw_log` responce field.
 
 
 ### 3.3 Wait for your lease
@@ -321,8 +405,25 @@ You can access the application by visiting the hostnames mapped to your deployme
 ![result1](https://github.com/yuravorobei/yearn-finance-on-akash-guide/blob/main/media/deployed_1.png)
 ![result2](https://github.com/yuravorobei/yearn-finance-on-akash-guide/blob/main/media/deployed_2.png)
 
+### 3.5 Service Logs
+You can view your application logs to debug issues or watch progress using `akash provider service-logs` command, for example:
+```
+  $ akash provider service-logs --node "$AKASH_NODE" --owner "$ACCOUNT_ADDRESS" \
+  --dseq "$DSEQ" --gseq 1 --oseq $OSEQ --provider "$PROVIDER" \
+  --service web \
+```
 
-### 3.5 Close your deployment
+You should see a response similar to this:
+```
+[web-978dc6568-5xx7t] /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+[web-978dc6568-5xx7t] /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+[web-978dc6568-5xx7t] /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+[web-978dc6568-5xx7t] 10-listen-on-ipv6-by-default.sh: Getting the checksum of /etc/nginx/conf.d/default.conf
+[web-978dc6568-5xx7t] /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+[web-978dc6568-5xx7t] /docker-entrypoint.sh: Configuration complete; ready for start up
+```
+
+### 3.6 Close your deployment
 
 When you are done with your application, close the deployment. This will deprovision your container and stop the token transfer. Close deployment using deployment by creating a deployment-close transaction:
   ```shell
