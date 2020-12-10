@@ -14,13 +14,13 @@ The Akash works with a Docker images, so the first thing we need to do to deploy
 First, you need to get the source code of the Yearn.Finance application on your computer. To do this, clone the [Yearn.Finance GitHub repository](https://github.com/iearn-finance/iearn-finance.git):
   ```bash
   $ git clone https://github.com/iearn-finance/iearn-finance.git
+  $ cd iearn-finance
   ```
 
 ### 1.2 Creating a server.js
 The YearnFinance application is written in Node.JS, so to run it, create a server.js file that defines a web app using the Express.js framework:
   
   ```bash
-  $ cd iearn-finance
   $ nano server.js
   ```
 
@@ -43,6 +43,7 @@ And put the following code in it:
   ```
 Here I've configured web app to work on port `8080`, but in fact you can specify any port here, because later on the deployment stage we can forward the ports using the port mapping rules.
 
+
 ### 1.3 Creating a Dockerfile
 Docker can build images automatically by reading the instructions from a Dockerfile. A Dockerfile is a text document that contains all the commands a user could call on the command line to assemble an image. Create the Dockerfile:
   ```bash
@@ -52,7 +53,7 @@ And put the following code in it:
   ```dockerfile
   # Latest (at the time of writing) LTS version of node available from the Docker Hub
   FROM node:15
-
+  
   # Working directory for our application
   WORKDIR /usr/src/app
 
@@ -89,8 +90,8 @@ Find the image ID using `docker images`:
   ```
   $ docker images
 
-  REPOSITORY           TAG                 IMAGE ID            CREATED             SIZE
-  yura/iearn-finance   latest              7900fe35b502        32 seconds ago      1.58GB
+  REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
+  yarn-finance-last   latest              493f128d23fb        3 minutes ago       61.6MB
   ```
 My image ID is `7900fe35b502`. Then tag your image with the following command. Replace <image_id> with your image ID and replace `<your_hub_username>` with your Docker Hub usesrname. Any name can be used instead of `iearn-finance`.
   ```
