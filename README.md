@@ -1,4 +1,4 @@
-# Deployment guide for Yearn.Finance on Akash DeCloud
+# Yearn.Finance interface on Akash DeCloud deployment guide
 ![title picture](https://github.com/yuravorobei/yearn-finance-on-akash-guide/blob/main/media/header.png)
 
   In this guide for the "Akashian Challenge: Phase 3 Start Guide" I'll show you how to deploy the [Yearn.Finance web-app](https://docs.yearn.finance/) on the [Akash Decentralized Cloud (DeCloud)](https://akash.network/).  
